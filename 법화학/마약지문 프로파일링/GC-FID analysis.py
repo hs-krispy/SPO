@@ -150,7 +150,7 @@ class FID:
         heat_data = squareform(dist_matrix)
         # heat_data = 1 / (1 + heat_data)
         heat_data = 1 - heat_data
-        similarity_matrix = heat_data
+        similarity_matrix = np.round(heat_data, 4)
 
         heat_data = heat_data[dendro_leaves, :]
         heat_data = heat_data[:, dendro_leaves]
@@ -255,6 +255,7 @@ class FID:
         os.mkdir(each_dir)
 
         count = 0
+        total_sim_matrix = []
         for idx, file in enumerate(tqdm(self.file_names)):
             cor_idx = np.where(self.cor_df.iloc[idx, :].values >= correlation_threshold)[0]
             ccor_idx = np.where(ccor_df.iloc[idx, :].values >= NCC_threshold)[0]
@@ -265,6 +266,12 @@ class FID:
             # 자기 자신만 해당되는 경우는 제외
             if len(predict_sim) == 1:
                 continue
+            # similarity table 생성 (내림차순)
+            sim_table = predict_sim.sort_values(ascending=False)
+            sim_table = sim_table.loc[~sim_table.index.isin([file])]
+            M_index = pd.MultiIndex.from_arrays([[file] * len(sim_table), sim_table.index], names=["Target", "Similar"])
+            each_sim_df = pd.DataFrame(sim_table.values, index=M_index, columns=["Correlation coefficient"])
+            total_sim_matrix.append(each_sim_df)
 
             count += 1
             if not os.path.exists(os.path.join(each_dir, file)):
@@ -279,8 +286,10 @@ class FID:
                 if file == target:
                     continue
                 old = os.path.join(file_dir, (str(target) + ".png"))
-                os.rename(old, old.split(".")[0] + f" ({round(sim, 5)}).png")
+                os.rename(old, old.split(".")[0] + f" ({sim}).png")
         print(f"\n{count} samples have similar other samples")
+
+        pd.concat(total_sim_matrix).to_excel(os.path.join(self.result_dir, f"{when}_similarity_matrix.xlsx"))
 
     def Select_optimal_k(self, lower, upper, constraint_step=12):
         upper += 1
@@ -338,6 +347,7 @@ class FID:
         plt.tight_layout()
         plt.savefig(os.path.join(self.figure_dir, "Optimal_K(CHS, DBI).png"), dpi=400)
 
+
 timeseries = []
 file_names = []
 # 원본 FID 이미지 디렉토리
@@ -391,5 +401,5 @@ obj = FID(data=timeseries, file_names=file_names)
 # obj.Select_optimal_k(lower=10, upper=30, constraint_step=12)
 Subsequence_matrix = obj.Sliding_window(stride=30, window_size=240)
 Sim_matrix = obj.CSPA(data=Subsequence_matrix, n_clusters=21, constraint_step=12)
-obj.Correlation_heat_dendrogram(data=Sim_matrix)
+obj.Correlation_heat_dendrogram(data=Sim_matrix, show_figrue=False)
 obj.Saving_similar_image(time_lag=12, correlation_threshold=0.9, NCC_threshold=0.95)
