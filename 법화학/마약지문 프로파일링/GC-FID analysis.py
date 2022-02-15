@@ -84,6 +84,8 @@ class FID:
 
     # Make sub-sequence matrix
     def Sliding_window(self, stride=1, window_size=120):
+        print(
+            f"\n------------------------------- Sliding window -------------------------------")
         subsequence_matrix = []
         ts = self.data.copy()
 
@@ -95,7 +97,7 @@ class FID:
                 prev += stride
             subsequence_matrix.append(subsequence)
         print(
-            f"\n------------------------------- Sub-sequence matrix shape : {np.array(subsequence_matrix).shape} -------------------------------")
+            f"\nSub-sequence matrix shape : {np.array(subsequence_matrix).shape}")
 
         return np.array(subsequence_matrix)
 
@@ -250,7 +252,7 @@ class FID:
             f"\n------------------------------- Save similar image -------------------------------")
 
         now = dt.datetime.now()
-        when = now.strftime("%Y_%m_%d_%H_%M")
+        when = now.strftime(f"%Y_%m_%d_%H_%M_R({correlation_threshold})_NCC({NCC_threshold})")
         each_dir = os.path.join(self.result_dir, when)
         os.mkdir(each_dir)
 
@@ -267,8 +269,7 @@ class FID:
             if len(predict_sim) == 1:
                 continue
             # similarity table 생성 (내림차순)
-            sim_table = predict_sim.sort_values(ascending=False)
-            sim_table = sim_table.loc[~sim_table.index.isin([file])]
+            sim_table = predict_sim.loc[~predict_sim.index.isin([file])]
             M_index = pd.MultiIndex.from_arrays([[file] * len(sim_table), sim_table.index], names=["Target", "Similar"])
             each_sim_df = pd.DataFrame(sim_table.values, index=M_index, columns=["Correlation coefficient"])
             total_sim_matrix.append(each_sim_df)
@@ -286,10 +287,10 @@ class FID:
                 if file == target:
                     continue
                 old = os.path.join(file_dir, (str(target) + ".png"))
-                os.rename(old, old.split(".")[0] + f" ({sim}).png")
+                os.rename(old, old[:-4] + f" ({sim}).png")
         print(f"\n{count} samples have similar other samples")
 
-        pd.concat(total_sim_matrix).to_excel(os.path.join(self.result_dir, f"{when}_similarity_matrix.xlsx"))
+        pd.concat(total_sim_matrix).sort_values(by=["Target", "Correlation coefficient"], ascending=[False, False]).to_excel(os.path.join(self.result_dir, f"{when}_similarity_matrix.xlsx"))
 
     def Select_optimal_k(self, lower, upper, constraint_step=12):
         upper += 1
@@ -322,14 +323,14 @@ class FID:
         ax1.set_xlabel("K (Number of Clusters)", labelpad=10, fontsize=18)
         ax1.set_ylabel("Inertia", labelpad=10, fontsize=18)
         ax1.tick_params(axis="both", labelsize=16)
-        line2 = ax2.plot(range(lower, upper), silhouettes, "o-", color="r", linewidth=2, label="Silhouette score")
-        ax2.set_ylabel("Silhouette score", labelpad=10, fontsize=18)
+        line2 = ax2.plot(range(lower, upper), DBI, "o-", color="r", linewidth=2, label="Davies-Bouldin score")
+        ax2.set_ylabel("Davies-Bouldin score", labelpad=10, fontsize=18)
         ax2.tick_params(axis="y", labelsize=16)
         ax1.legend(line1 + line2, [x.get_label() for x in (line1 + line2)], fontsize=20)
         ax1.grid(True)
         ax2.grid(False)
         plt.tight_layout()
-        plt.savefig(os.path.join(self.figure_dir, "Optimal_K(inertia, silhouette).png"), dpi=400)
+        plt.savefig(os.path.join(self.figure_dir, "Optimal_K(inertia, DBI).png"), dpi=400)
 
         plt.cla()
         plt.figure(figsize=(16, 10))
@@ -338,14 +339,14 @@ class FID:
         ax1.set_xlabel("K (Number of Clusters)", labelpad=10, fontsize=18)
         ax1.set_ylabel("Calinski-Harabasz score", labelpad=10, fontsize=18)
         ax1.tick_params(axis="both", labelsize=16)
-        line2 = ax2.plot(range(lower, upper), DBI, "o-", color="orange", linewidth=2, label="Davies-Bouldin score")
-        ax2.set_ylabel("Davies-Bouldin score", labelpad=10, fontsize=18)
+        line2 = ax2.plot(range(lower, upper), silhouettes, "o-", color="orange", linewidth=2, label="Silhouette score")
+        ax2.set_ylabel("Silhouette score", labelpad=10, fontsize=18)
         ax2.tick_params(axis="y", labelsize=16)
         ax1.legend(line1 + line2, [x.get_label() for x in (line1 + line2)], fontsize=20)
         ax1.grid(True)
         ax2.grid(False)
         plt.tight_layout()
-        plt.savefig(os.path.join(self.figure_dir, "Optimal_K(CHS, DBI).png"), dpi=400)
+        plt.savefig(os.path.join(self.figure_dir, "Optimal_K(CHS, silhouette).png"), dpi=400)
 
 
 timeseries = []
